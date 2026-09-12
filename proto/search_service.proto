@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package tendermate.agent.v1;
+
+// ─── Service ──────────────────────────────────────────────────────────────────
+
+service SearchService {
+  // Backend sends one request, agent streams back one MatchResult per product.
+  rpc SearchProducts(SearchRequest) returns (stream MatchResult);
+
+  // Cancel a running job. Returns immediately; the job stops asynchronously.
+  rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
+}
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+
+message Product {
+  string id          = 1;
+  string name        = 2;
+  string description = 3;
+  int32  quantity    = 4;
+  string unit        = 5;
+}
+
+message SearchRequest {
+  string            job_id   = 1;
+  repeated Product  products = 2;
+}
+
+// ─── Output ───────────────────────────────────────────────────────────────────
+
+message AnalysisRecord {
+  string candidate_url  = 1;
+  string candidate_name = 2;
+  bool   matched        = 3;
+  float  confidence     = 4;
+  string reason         = 5;
+}
+
+message MatchResult {
+  string                  product_id   = 1;
+  bool                    matched      = 2;
+  string                  etm_url      = 3;
+  string                  etm_name     = 4;
+  float                   etm_price    = 5;
+  string                  etm_sku      = 6;
+  float                   confidence   = 7;
+  string                  ai_reasoning = 8;
+  repeated AnalysisRecord ai_analyses  = 9;
+}
+
+// ─── Cancellation ─────────────────────────────────────────────────────────────
+
+message CancelJobRequest  { string job_id      = 1; }
+message CancelJobResponse { bool   was_running = 1; }
