@@ -5,7 +5,7 @@
 proto:
 	python -m grpc_tools.protoc \
 		-I proto \
-		--python_betterproto_out=src/tendermate_shared/grpc \
+		--python_betterproto_out=tendermate_shared/grpc \
 		search_service.proto
 
 install:
