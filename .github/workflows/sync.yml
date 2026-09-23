@@ -1,0 +1,28 @@
+name: Sync to Second Repository
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push to mirror repository
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.SYNC_TOKEN }}
+        with:
+          source-directory: '.'
+          destination-github-username: 'AntonTereshko1995'
+          destination-repository-name: 'tendermate-shared'
+          user-email: 'actions@github.com'
+          commit-message: 'Automated sync from main'
+          target-branch: main
