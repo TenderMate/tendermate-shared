@@ -680,6 +680,10 @@ wheels = [
 name = "tendermate-shared"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "betterproto" },
+    { name = "grpclib" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -689,6 +693,10 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "betterproto", specifier = ">=2.0.0b7" },
+    { name = "grpclib", specifier = ">=0.4.7" },
+]
 
 [package.metadata.requires-dev]
 dev = [

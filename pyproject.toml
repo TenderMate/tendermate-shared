@@ -3,7 +3,10 @@ name = "tendermate-shared"
 version = "0.1.0"
 description = "Shared gRPC proto definitions for TenderMate services"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "grpclib>=0.4.7",
+    "betterproto>=2.0.0b7",
+]
 
 [dependency-groups]
 dev = [
@@ -21,3 +24,7 @@ include = ["tendermate_shared*"]
 
 [tool.setuptools.package-data]
 tendermate_shared = ["proto/*.proto"]
+
+[tool.ruff]
+line-length = 100
+exclude = ["tendermate_shared/grpc/**"]
