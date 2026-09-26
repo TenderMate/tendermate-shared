@@ -5,8 +5,10 @@ package tendermate.agent.v1;
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 service SearchService {
-  // Backend sends one request, agent streams back one MatchResult per product.
-  rpc SearchProducts(SearchRequest) returns (stream MatchResult);
+  // Backend sends one request, agent streams back one SearchEvent per state
+  // change: a ProductStarted when a product enters the pipeline, and a
+  // MatchResult when it finishes. Events for a product are ordered started→result.
+  rpc SearchProducts(SearchRequest) returns (stream SearchEvent);
 
   // Cancel a running job. Returns immediately; the job stops asynchronously.
   rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
@@ -37,6 +39,12 @@ message AnalysisRecord {
   string reason         = 5;
 }
 
+// Emitted when a product enters the active processing pipeline (proxy slot
+// acquired). Carries only the id — there is no match data yet.
+message ProductStarted {
+  string product_id = 1;
+}
+
 message MatchResult {
   string                  product_id   = 1;
   bool                    matched      = 2;
@@ -47,6 +55,14 @@ message MatchResult {
   float                   confidence   = 7;
   string                  ai_reasoning = 8;
   repeated AnalysisRecord ai_analyses  = 9;
+}
+
+// A single event on the SearchProducts stream: exactly one of the variants.
+message SearchEvent {
+  oneof event {
+    ProductStarted started = 1;
+    MatchResult    result  = 2;
+  }
 }
 
 // ─── Cancellation ─────────────────────────────────────────────────────────────
