@@ -1,0 +1,34 @@
+name: Proto stubs freshness
+
+# Gate: generated betterproto stubs in tendermate_shared/grpc must always match
+# proto/*.proto. Since consumers install this package straight from the `main`
+# branch (git+...@main), stale committed stubs would ship a broken contract.
+# This job regenerates and fails if the working tree differs.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  proto-fresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dev deps
+        run: uv sync --group dev
+
+      - name: Regenerate stubs
+        run: make proto
+
+      - name: Fail if stubs are out of date
+        run: |
+          if ! git diff --exit-code -- tendermate_shared/grpc; then
+            echo "::error::Generated stubs are out of date. Run 'make proto' and commit tendermate_shared/grpc." >&2
+            exit 1
+          fi
