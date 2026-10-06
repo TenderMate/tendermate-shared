@@ -67,6 +67,7 @@ class MatchResult(betterproto.Message):
     confidence: float = betterproto.float_field(7)
     ai_reasoning: str = betterproto.string_field(8)
     ai_analyses: List["AnalysisRecord"] = betterproto.message_field(9)
+    category: str = betterproto.string_field(10)
 
 
 @dataclass(eq=False, repr=False)
