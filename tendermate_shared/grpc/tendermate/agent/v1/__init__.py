@@ -68,6 +68,7 @@ class MatchResult(betterproto.Message):
     ai_reasoning: str = betterproto.string_field(8)
     ai_analyses: List["AnalysisRecord"] = betterproto.message_field(9)
     category: str = betterproto.string_field(10)
+    error: bool = betterproto.bool_field(11)
 
 
 @dataclass(eq=False, repr=False)
