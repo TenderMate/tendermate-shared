@@ -55,7 +55,8 @@ message MatchResult {
   float                   confidence   = 7;
   string                  ai_reasoning = 8;
   repeated AnalysisRecord ai_analyses  = 9;
-  string                  category     = 10;  // AI-assigned product group (Russian title), "" if none
+  string                  category     = 10;
+  bool                    error        = 11;  // true if the per-product search raised an error
 }
 
 // A single event on the SearchProducts stream: exactly one of the variants.
