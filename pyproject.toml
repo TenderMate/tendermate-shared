@@ -1,12 +1,19 @@
 [project]
 name = "tendermate-shared"
-version = "0.1.0"
-description = "Shared gRPC proto definitions for TenderMate services"
+version = "0.2.0"
+description = "Shared gRPC proto definitions + agent scaffolding for TenderMate services"
 requires-python = ">=3.10"
 dependencies = [
     "grpclib>=0.4.7",
     "betterproto>=2.0.0b7",
+    # Shared agent scaffolding (tendermate_shared.agents) + observability helpers.
+    "langchain-core>=0.3",
+    "pydantic>=2",
 ]
+
+[project.optional-dependencies]
+# Enables Sentry capture in report_handled_issue; without it, reporting degrades to a log line.
+observability = ["sentry-sdk>=2"]
 
 [dependency-groups]
 dev = [
@@ -19,12 +26,27 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["tendermate_shared*"]
+# src-layout: the package code lives in src/ but is imported as `tendermate_shared`, so map the
+# import name onto src/ (the modules — agents/grpc/observability — sit directly under src/). Must
+# list packages explicitly: `find` would discover them as top-level `agents`/`grpc`/… without the
+# `tendermate_shared` prefix. Add new grpc subpackages here when the proto grows.
+[tool.setuptools]
+package-dir = { "tendermate_shared" = "src" }
+packages = [
+    "tendermate_shared",
+    "tendermate_shared.agents",
+    "tendermate_shared.observability",
+    "tendermate_shared.grpc",
+    "tendermate_shared.grpc.tendermate",
+    "tendermate_shared.grpc.tendermate.agent",
+    "tendermate_shared.grpc.tendermate.agent.v1",
+]
 
 [tool.setuptools.package-data]
 tendermate_shared = ["proto/*.proto"]
+"tendermate_shared.agents" = ["py.typed"]
+"tendermate_shared.observability" = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
-exclude = ["tendermate_shared/grpc/**"]
+exclude = ["src/grpc/**"]
