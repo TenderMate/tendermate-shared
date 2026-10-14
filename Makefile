@@ -3,10 +3,10 @@
 # Regenerate gRPC stubs from proto/search_service.proto.
 # Requires dev deps: uv sync --group dev (or pip install "betterproto[compiler]>=2.0.0b7" grpcio-tools)
 proto:
-	mkdir -p tendermate_shared/grpc
+	mkdir -p src/grpc
 	uv run python -m grpc_tools.protoc \
 		-I proto \
-		--python_betterproto_out=tendermate_shared/grpc \
+		--python_betterproto_out=src/grpc \
 		search_service.proto
 
 install:
