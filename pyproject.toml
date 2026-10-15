@@ -1,6 +1,6 @@
 [project]
 name = "tendermate-shared"
-version = "0.2.0"
+version = "0.3.0"
 description = "Shared gRPC proto definitions + agent scaffolding for TenderMate services"
 requires-python = ">=3.10"
 dependencies = [
@@ -8,6 +8,8 @@ dependencies = [
     "betterproto>=2.0.0b7",
     # Shared agent scaffolding (tendermate_shared.agents) + observability helpers.
     "langchain-core>=0.3",
+    # BaseAgent.run/arun trace to LangSmith via @traceable (both services).
+    "langsmith>=0.2.0",
     "pydantic>=2",
 ]
 
