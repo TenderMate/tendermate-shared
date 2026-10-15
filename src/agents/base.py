@@ -1,46 +1,43 @@
 """Shared agent scaffolding for the TenderMate LLM services.
 
-This is the framework-agnostic core of ``BaseAgent`` — everything EXCEPT ``run()``. The two
-services drive the model differently and cannot share a single ``run``:
+The complete ``BaseAgent`` lives here — message contract, ``model`` property, :meth:`safe_parse`,
+and the ONE entry point both services share: the synchronous :meth:`run`, traced to LangSmith.
 
-* ``tendermate-agent`` — ``async def run`` traced to LangSmith, offloading the sync model call to a
-  thread executor (awaited inside LangGraph nodes).
-* ``tendermate-import-agent`` — ``def run`` (sync, with a per-call ``temperature`` override), called
-  inside a ``ThreadPoolExecutor`` by the lexicon/extraction ensembles.
+* ``tendermate-import-agent`` calls :meth:`run` directly inside its lexicon/extraction ensembles,
+  running ``vote_n`` of them concurrently in a ``ThreadPoolExecutor``.
+* ``tendermate-agent`` offloads :meth:`run` with ``asyncio.to_thread`` from its LangGraph nodes, so
+  the blocking model call never stalls the event loop while products run concurrently.
 
-So each service subclasses :class:`BaseAgent` and adds its own ``run``; the message contract,
-``model`` property and :meth:`safe_parse` live here, once.
+:meth:`run` wraps the model call in a traced ``llm`` span nested under a traced ``chain`` span, so
+token counts and latency show up per-agent in LangSmith for whichever service runs them. Per-call
+sampling overrides (temperature / top_p / top_k) travel in a :class:`GenerationConfig`.
 """
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
-
+from langsmith import traceable
+from tendermate_shared.agents.config import GenerationConfig
 from tendermate_shared.agents.input import AgentInput
+from tendermate_shared.agents.result import AgentResult
 from tendermate_shared.observability.sentry import report_handled_issue
+
+logger = logging.getLogger(__name__)
 
 TInput = TypeVar("TInput", bound=AgentInput)
 TOutput = TypeVar("TOutput")
 
 
-@dataclass
-class AgentResult(Generic[TOutput]):
-    """Uniform result envelope returned by every agent's ``run``."""
-
-    data: TOutput
-    model: str
-
-
 class BaseAgent(ABC, Generic[TInput, TOutput]):
     """Abstract base for a LangChain-model agent returning a typed, parsed result.
 
-    The message contract is enforced here: a subclass' ``run`` MUST build its messages via
+    The message contract is enforced here: :meth:`run`/:meth:`arun` build their messages via
     :meth:`_build_messages`, so the ``SystemMessage`` always comes from :meth:`_system_prompt`
     (agent policy) and the ``HumanMessage`` is ALWAYS :meth:`AgentInput.render_human` (typed data) —
     never a raw string hand-rolled at the call site.
@@ -71,6 +68,54 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
             SystemMessage(content=self._system_prompt()),
             HumanMessage(content=agent_input.render_human()),
         ]
+
+    @traceable(run_type="llm")
+    def _call_llm(self, messages: list[BaseMessage], **kwargs: Any) -> str:
+        """Invoke the LangChain model synchronously and return its text content.
+
+        Decorated ``run_type="llm"`` so LangSmith records inputs, output, model name and token
+        usage automatically. ``kwargs`` (e.g. a per-call ``temperature``) pass straight to the model.
+        """
+        response = self._model.invoke(messages, **kwargs)
+        content = response.content
+        if content is None:
+            return ""
+        return content if isinstance(content, str) else str(content)
+
+    @traceable(run_type="chain")
+    def run(
+        self, agent_input: TInput, *, gen_config: GenerationConfig | None = None
+    ) -> AgentResult[TOutput]:
+        """Build messages, invoke the model synchronously, parse into the typed result.
+
+        The single entry point for both services: import-agent calls it directly inside its
+        ``ThreadPoolExecutor`` ensembles; searching-agent offloads it with ``asyncio.to_thread``
+        from its async LangGraph nodes. ``gen_config`` (when given) carries per-call sampling
+        overrides — temperature / top_p / top_k — forwarded to the model; import-agent uses it to
+        run each vote at a different temperature. (Named ``gen_config``, not ``config``: the
+        ``@traceable`` wrapper reserves a ``config`` kwarg for the LangChain ``RunnableConfig``.)
+        """
+        messages = self._build_messages(agent_input)
+        response_text = self._call_llm(
+            messages, **(gen_config.to_model_kwargs() if gen_config else {})
+        )
+
+        human = messages[-1].content if messages else ""
+        input_chars = len(human) if isinstance(human, str) else len(str(human))
+        logger.info(
+            "LLM ok model=%s input_chars=%d output_chars=%d",
+            self.model,
+            input_chars,
+            len(response_text),
+        )
+        if logger.isEnabledFor(logging.DEBUG):
+            for i, msg in enumerate(messages):
+                role = getattr(msg, "type", type(msg).__name__)
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                logger.debug("LLM input[%d] role=%s: %s", i, role, content)
+            logger.debug("LLM output: %s", response_text)
+
+        return AgentResult(data=self._parse_response(response_text), model=self.model)
 
     @staticmethod
     def safe_parse(
