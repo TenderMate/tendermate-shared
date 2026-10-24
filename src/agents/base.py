@@ -70,6 +70,52 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
         ]
 
     @traceable(run_type="llm")
+    async def _acall_llm(self, messages: list[BaseMessage], **kwargs: Any) -> str:
+        """Invoke the LangChain model asynchronously and return its text content.
+
+        Decorated ``run_type="llm"`` so LangSmith records token usage for async
+        calls too. Use this from :meth:`arun` — never ``asyncio.to_thread(_call_llm)``.
+        """
+        response = await self._model.ainvoke(messages, **kwargs)
+        content = response.content
+        if content is None:
+            return ""
+        return content if isinstance(content, str) else str(content)
+
+    @traceable(run_type="chain")
+    async def arun(
+        self, agent_input: TInput, *, gen_config: GenerationConfig | None = None
+    ) -> AgentResult[TOutput]:
+        """Async counterpart of :meth:`run` using ``model.ainvoke()`` — no thread pool needed.
+
+        Searching-agent LangGraph nodes use this so LLM calls stay on the event
+        loop without saturating the ``asyncio.to_thread`` 5-thread pool. Import-agent
+        keeps using the synchronous :meth:`run` inside its ``ThreadPoolExecutor`` ensembles.
+        (Named ``gen_config``, not ``config``: ``@traceable`` reserves the ``config`` kwarg.)
+        """
+        messages = self._build_messages(agent_input)
+        response_text = await self._acall_llm(
+            messages, **(gen_config.to_model_kwargs() if gen_config else {})
+        )
+
+        human = messages[-1].content if messages else ""
+        input_chars = len(human) if isinstance(human, str) else len(str(human))
+        logger.info(
+            "LLM ok model=%s input_chars=%d output_chars=%d",
+            self.model,
+            input_chars,
+            len(response_text),
+        )
+        if logger.isEnabledFor(logging.DEBUG):
+            for i, msg in enumerate(messages):
+                role = getattr(msg, "type", type(msg).__name__)
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                logger.debug("LLM input[%d] role=%s: %s", i, role, content)
+            logger.debug("LLM output: %s", response_text)
+
+        return AgentResult(data=self._parse_response(response_text), model=self.model)
+
+    @traceable(run_type="llm")
     def _call_llm(self, messages: list[BaseMessage], **kwargs: Any) -> str:
         """Invoke the LangChain model synchronously and return its text content.
 
