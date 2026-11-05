@@ -1,6 +1,6 @@
 [project]
 name = "tendermate-shared"
-version = "0.3.0"
+version = "0.4.0"
 description = "Shared gRPC proto definitions + agent scaffolding for TenderMate services"
 requires-python = ">=3.10"
 dependencies = [
@@ -8,8 +8,6 @@ dependencies = [
     "betterproto>=2.0.0b7",
     # Shared agent scaffolding (tendermate_shared.agents) + observability helpers.
     "langchain-core>=0.3",
-    # BaseAgent.run/arun trace to LangSmith via @traceable (both services).
-    "langsmith>=0.2.0",
     "pydantic>=2",
 ]
 
@@ -22,6 +20,8 @@ dev = [
     "grpcio-tools>=1.62.0",
     "betterproto[compiler]>=2.0.0b7",
     "ruff>=0.8.0",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1.post1",
 ]
 
 [build-system]
@@ -52,3 +52,8 @@ tendermate_shared = ["proto/*.proto"]
 [tool.ruff]
 line-length = 100
 exclude = ["src/grpc/**"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
