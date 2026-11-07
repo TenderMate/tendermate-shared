@@ -90,14 +90,15 @@ jobs:
           uv build
           gh release create "v$NEXT" dist/* --verify-tag --generate-notes --title "v$NEXT"
 
+      # The mirror is a copy only; --force keeps it equal to main even if it drifted.
       - name: Push to mirror repository
-        uses: cpina/github-action-push-to-another-repository@main
         env:
-          API_TOKEN_GITHUB: ${{ secrets.SYNC_TOKEN }}
-        with:
-          source-directory: '.'
-          destination-github-username: 'AntonTereshko1995'
-          destination-repository-name: 'tendermate-shared'
-          user-email: 'actions@github.com'
-          commit-message: 'Release v${{ steps.version.outputs.next }}'
-          target-branch: main
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          # actions/checkout persisted GITHUB_TOKEN as an auth header; it would override the mirror
+          # credentials ("Repository not found").
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git push --force \
+            "https://AntonTereshko1995:${SYNC_TOKEN}@github.com/AntonTereshko1995/tendermate-shared.git" \
+            HEAD:main
