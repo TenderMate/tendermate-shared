@@ -1,0 +1,104 @@
+name: Release
+
+# Every push to main is a release: bump the version, tag it, publish a GitHub Release with the
+# built wheel/sdist, then sync the tree to the mirror repository.
+#
+# Consumers pin a release tag (git+https://github.com/TenderMate/tendermate-shared.git@vX.Y.Z)
+# and move to a new one with `uv add "tendermate-shared @ git+...@vX.Y.Z"` in their own PR.
+#
+# Bump level is derived from the commit messages since the last tag:
+#   "<type>!:" or "BREAKING CHANGE"  -> major
+#   "feat:" / "feat(scope):"          -> minor
+#   anything else                     -> patch
+# To force a specific version, set it in pyproject.toml (`uv version X.Y.Z`) in the PR: a version
+# that differs from the last tag is released as-is.
+#
+# The release commit is pushed with GITHUB_TOKEN, and such pushes never trigger workflows, so it
+# does not loop back into this one.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      # ref: main (not the triggering SHA) so a queued run builds on top of the previous release
+      # commit instead of failing the push as non-fast-forward.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Compute next version
+        id: version
+        run: |
+          set -euo pipefail
+          current=$(uv version --short)
+          last_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)
+
+          if [ -n "$last_tag" ] && [ "$(git rev-list -n1 "$last_tag")" = "$(git rev-parse HEAD)" ]; then
+            # Re-run on an already released commit: nothing to tag.
+            echo "next=${last_tag#v}" >> "$GITHUB_OUTPUT"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$last_tag" ] && [ "$current" != "${last_tag#v}" ]; then
+            next=$current
+          else
+            log=$(git log --format=%B ${last_tag:+"$last_tag"..}HEAD)
+            IFS=. read -r major minor patch <<< "$current"
+            if grep -qE '^[a-z]+(\([^)]*\))?!:|BREAKING CHANGE' <<< "$log"; then
+              next="$((major + 1)).0.0"
+            elif grep -qE '^feat(\([^)]*\))?:' <<< "$log"; then
+              next="$major.$((minor + 1)).0"
+            else
+              next="$major.$minor.$((patch + 1))"
+            fi
+          fi
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag and publish release
+        if: steps.version.outputs.bumped == 'true'
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv version "$NEXT" --no-sync
+          # No-op when the version was set by hand in the PR (already committed).
+          git diff --quiet || git commit -am "chore(release): v$NEXT"
+          git tag -a "v$NEXT" -m "v$NEXT"
+          git push origin HEAD:main "v$NEXT"
+          uv build
+          gh release create "v$NEXT" dist/* --verify-tag --generate-notes --title "v$NEXT"
+
+      # The mirror is a copy only; --force keeps it equal to main even if it drifted.
+      - name: Push to mirror repository
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          # actions/checkout persisted GITHUB_TOKEN as an auth header; it would override the mirror
+          # credentials ("Repository not found").
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git push --force \
+            "https://AntonTereshko1995:${SYNC_TOKEN}@github.com/AntonTereshko1995/tendermate-shared.git" \
+            HEAD:main
