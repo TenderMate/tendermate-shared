@@ -1,8 +1,8 @@
 name: Proto stubs freshness
 
 # Gate: generated betterproto stubs in src/grpc must always match
-# proto/*.proto. Since consumers install this package straight from the `main`
-# branch (git+...@main), stale committed stubs would ship a broken contract.
+# proto/*.proto. Consumers install this package straight from a git tag
+# (git+...@vX.Y.Z), so stale committed stubs would ship a broken contract.
 # This job regenerates and fails if the working tree differs.
 
 on:
