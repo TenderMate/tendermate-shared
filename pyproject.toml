@@ -6,14 +6,24 @@ requires-python = ">=3.10"
 dependencies = [
     "grpclib>=0.4.7",
     "betterproto>=2.0.0b7",
-    # Shared agent scaffolding (tendermate_shared.agents) + observability helpers.
+    # Shared agent scaffolding (tendermate_shared.agents) + observability helpers. The OTel API is
+    # tiny and a no-op without an SDK: the metrics facade, LLM callback and gRPC telemetry use it.
     "langchain-core>=0.3",
     "pydantic>=2",
+    "opentelemetry-api>=1.45.2",
 ]
 
 [project.optional-dependencies]
-# Enables Sentry capture in report_handled_issue; without it, reporting degrades to a log line.
-observability = ["sentry-sdk>=2"]
+# Telemetry export: tendermate_shared.observability.telemetry (OTLP to tm-obs, runtime metrics,
+# Pyroscope) and Sentry capture in report_handled_issue / the metrics facade. Without it,
+# reporting degrades to a log line and metrics go nowhere.
+observability = [
+    "opentelemetry-exporter-otlp-proto-http>=1.45.2",
+    "opentelemetry-instrumentation-system-metrics>=0.66b2",
+    "opentelemetry-sdk>=1.45.2",
+    "pyroscope-io>=1.4.0",
+    "sentry-sdk>=2.68.0",
+]
 
 [dependency-groups]
 dev = [
@@ -45,7 +55,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-tendermate_shared = ["proto/*.proto"]
+tendermate_shared = ["proto/*.proto", "py.typed"]
 "tendermate_shared.agents" = ["py.typed"]
 "tendermate_shared.observability" = ["py.typed"]
 
