@@ -1,6 +1,6 @@
 [project]
 name = "tendermate-shared"
-version = "0.4.3"
+version = "0.4.4"
 description = "Shared gRPC proto definitions + agent scaffolding for TenderMate services"
 requires-python = ">=3.10"
 dependencies = [
