@@ -5,9 +5,21 @@ and `tendermate-import-agent` as a git dependency pinned to a release tag.
 
 - `proto/search_service.proto`: the gRPC `SearchService` contract (backend → searching-agent).
 - `tendermate_shared.grpc`: betterproto stubs generated from the proto and committed to git.
-- `tendermate_shared.agents`: `BaseAgent` scaffolding, `AgentInput` / `AgentResult`.
-- `tendermate_shared.observability`: `report_handled_issue`, `job_id_var`, `JobIdFilter`
-  (Sentry support via the optional `observability` extra).
+- `tendermate_shared.agents`: `BaseAgent` scaffolding, `AgentInput` / `AgentResult`;
+  `agents.telemetry.LlmTelemetryCallback` (the `llm.*` metrics of every chat-model call).
+- `tendermate_shared.build_info`: `load_build_info(service, path)`, the release identity read
+  from `build_info.json` (version, git SHA, Sentry release).
+- `tendermate_shared.observability`:
+  - `report_handled_issue`, `job_id_var`, `JobIdFilter`;
+  - `metrics`: `count` / `distribution` / `gauge` sent to Sentry and Prometheus at once;
+  - `telemetry`: the tm-obs half of each service's `init_telemetry` (OTLP export of metrics and
+    logs, process runtime metrics, event-loop lag, Pyroscope profiles, the Phoenix span filter);
+  - `rpc`: OpenTelemetry for the grpclib `SearchService`, client (backend) and server (agent)
+    halves, plus the `x-internal-key` metadata name.
+
+  `metrics` and `rpc` need only `opentelemetry-api` (a core dependency, a no-op without an
+  SDK). `telemetry` and Sentry capture need the `observability` extra: services depend on
+  `tendermate-shared[observability]`.
 
 ## Development
 
