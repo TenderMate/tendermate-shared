@@ -44,6 +44,19 @@ class AnalysisRecord(betterproto.Message):
     matched: bool = betterproto.bool_field(3)
     confidence: float = betterproto.float_field(4)
     reason: str = betterproto.string_field(5)
+    identifier_match: bool = betterproto.bool_field(6)
+    validation_score: Optional[float] = betterproto.float_field(7, optional=True)
+    """
+    Jev check of the tender key parameters (0..1, confirmed share of stated ones); unset = not validated
+    """
+
+    price: float = betterproto.float_field(8)
+    """
+    From the candidate's product page (like MatchResult.etm_price/etm_sku) so a human can pick a
+     non-winning candidate without losing them; 0 / "" = unknown (page not loaded).
+    """
+
+    sku: str = betterproto.string_field(9)
 
 
 @dataclass(eq=False, repr=False)
