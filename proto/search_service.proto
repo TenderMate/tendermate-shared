@@ -32,11 +32,18 @@ message SearchRequest {
 // ─── Output ───────────────────────────────────────────────────────────────────
 
 message AnalysisRecord {
-  string candidate_url  = 1;
-  string candidate_name = 2;
-  bool   matched        = 3;
-  float  confidence     = 4;
-  string reason         = 5;
+  string candidate_url    = 1;
+  string candidate_name   = 2;
+  bool   matched          = 3;
+  float  confidence       = 4;
+  string reason           = 5;
+  bool   identifier_match = 6;  // tender article/model deterministically equals the candidate's
+  // Jev check of the tender key parameters (0..1, confirmed share of stated ones); unset = not validated
+  optional float validation_score = 7;
+  // From the candidate's product page (like MatchResult.etm_price/etm_sku) so a human can pick a
+  // non-winning candidate without losing them; 0 / "" = unknown (page not loaded).
+  float  price = 8;
+  string sku   = 9;
 }
 
 // Emitted when a product enters the active processing pipeline (proxy slot
