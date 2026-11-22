@@ -57,6 +57,26 @@ class AnalysisRecord(betterproto.Message):
     """
 
     sku: str = betterproto.string_field(9)
+    price_unit: str = betterproto.string_field(10)
+    """
+    ETM sale terms of the candidate's page (price is per 1 price_unit); "" / 0 / [] = unknown
+     (page not loaded, or an agent older than these fields).
+    """
+
+    order_multiple: float = betterproto.double_field(11)
+    unit_conversions: List["UnitConversion"] = betterproto.message_field(12)
+
+
+@dataclass(eq=False, repr=False)
+class UnitConversion(betterproto.Message):
+    """
+    How many sale units (the record's price_unit, ETM "edizm") are in 1 `name` unit, e.g. ETM sells
+     cable by "м": {name: "км", multiplier: 1000}; EKF ties by "упак": {name: "шт", multiplier: 0.01}.
+    """
+
+    name: str = betterproto.string_field(1)
+    multiplier: float = betterproto.double_field(2)
+    source: str = betterproto.string_field(3)
 
 
 @dataclass(eq=False, repr=False)
@@ -82,6 +102,14 @@ class MatchResult(betterproto.Message):
     ai_analyses: List["AnalysisRecord"] = betterproto.message_field(9)
     category: str = betterproto.string_field(10)
     error: bool = betterproto.bool_field(11)
+    etm_price_unit: str = betterproto.string_field(12)
+    """
+    ETM sale terms of etm_url (etm_price is per 1 etm_price_unit); "" / 0 / [] = unknown (no
+     page, or an agent older than these fields).
+    """
+
+    etm_order_multiple: float = betterproto.double_field(13)
+    etm_unit_conversions: List["UnitConversion"] = betterproto.message_field(14)
 
 
 @dataclass(eq=False, repr=False)

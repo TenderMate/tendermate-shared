@@ -44,6 +44,19 @@ message AnalysisRecord {
   // non-winning candidate without losing them; 0 / "" = unknown (page not loaded).
   float  price = 8;
   string sku   = 9;
+  // ETM sale terms of the candidate's page (price is per 1 price_unit); "" / 0 / [] = unknown
+  // (page not loaded, or an agent older than these fields).
+  string                  price_unit       = 10;
+  double                  order_multiple   = 11;  // order multiple in price_unit ("Заказ по 100 м")
+  repeated UnitConversion unit_conversions = 12;
+}
+
+// How many sale units (the record's price_unit, ETM "edizm") are in 1 `name` unit, e.g. ETM sells
+// cable by "м": {name: "км", multiplier: 1000}; EKF ties by "упак": {name: "шт", multiplier: 0.01}.
+message UnitConversion {
+  string name       = 1;
+  double multiplier = 2;
+  string source     = 3;  // "etm" (packUnits) | "specs" (Количество в упаковке) | "name" (ETM name)
 }
 
 // Emitted when a product enters the active processing pipeline (proxy slot
@@ -64,6 +77,11 @@ message MatchResult {
   repeated AnalysisRecord ai_analyses  = 9;
   string                  category     = 10;
   bool                    error        = 11;  // true if the per-product search raised an error
+  // ETM sale terms of etm_url (etm_price is per 1 etm_price_unit); "" / 0 / [] = unknown (no
+  // page, or an agent older than these fields).
+  string                  etm_price_unit       = 12;
+  double                  etm_order_multiple   = 13;  // order multiple in etm_price_unit
+  repeated UnitConversion etm_unit_conversions = 14;
 }
 
 // A single event on the SearchProducts stream: exactly one of the variants.
