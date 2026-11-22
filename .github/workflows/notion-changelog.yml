@@ -1,0 +1,45 @@
+name: Notion changelog
+
+# On every push to main, append one paragraph to this service's Notion note
+# and leave a comment so the page subscribers get a notification.
+# A useful commit subject is kept. A blank or generic subject is replaced
+# by one sentence from the diff. A failed comment does not fail the job.
+# NOTION_TOKEN and NOTION_PAGE_ID are placeholders: this repo has no Notion
+# workflow to copy a page id from. Add both as Actions secrets before merge.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: python -m pip install requests
+
+      - name: Append the push to the Notion note
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            CHANGED_FILES="$(git diff --name-only HEAD^ HEAD | head -n 20 | paste -sd ', ' -)"
+          else
+            CHANGED_FILES=""
+          fi
+          export CHANGED_FILES
+          python .github/scripts/notion_changelog.py
