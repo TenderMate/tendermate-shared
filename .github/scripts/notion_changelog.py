@@ -130,6 +130,7 @@ def describe_change(subject: str) -> str:
 def paragraph() -> str:
     message = os.environ.get("COMMIT_MESSAGE", "").strip().splitlines()
     subject = message[0] if message else ""
+    body = "\n".join(message[1:]).strip()
     files = os.environ.get("CHANGED_FILES", "").strip()
     if len(files) > 800:
         files = files[:800] + "…"
@@ -138,6 +139,8 @@ def paragraph() -> str:
         f"от {os.environ['GITHUB_ACTOR']}.",
         describe_change(subject),
     ]
+    if body:
+        parts.append(body)
     if files:
         parts.append(f"Файлы: {files}.")
     return " ".join(part for part in parts if part)[:1900]
