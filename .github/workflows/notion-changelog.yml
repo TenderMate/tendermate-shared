@@ -1,0 +1,86 @@
+name: Notion changelog
+
+# On a push to main, append one English changelog entry to the Notion page.
+# The entry is: version, a clickable pull request link, and a Changes list.
+# The version is the highest vMAJOR.MINOR.PATCH tag already in the clone.
+# The link comes from the GitHub API for this SHA.
+# DeepSeek summarizes the diff. Release commits are skipped.
+#
+# Security:
+# - NOTION_TOKEN and DEEPSEEK_KEY come from Actions secrets. GITHUB_TOKEN is
+#   the built-in token. None of them are echoed, and the script redacts them
+#   before logging or sending text onward.
+# - DeepSeek is pinned to https://api.deepseek.com/v1/chat/completions and
+#   the model deepseek-chat. Redirects to any other host are refused.
+# - The script builds the Notion blocks itself. Commit text and the model
+#   reply can only supply sanitized bullet strings, not block types.
+# - A push writes only when the ref is main. CHANGELOG_LIVE and
+#   CHANGELOG_SAMPLE are false. workflow_dispatch prints the entry and does
+#   not write to Notion. Nothing in this workflow pushes to main.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  self-test:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       !startsWith(github.event.head_commit.message, 'chore(release):'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python -m pip install pytest requests
+
+      - name: Test the changelog script
+        run: python -m pytest tests/test_notion_changelog.py -q --noconftest
+
+  changelog:
+    needs: self-test
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       !startsWith(github.event.head_commit.message, 'chore(release):'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch release tags
+        run: git fetch --tags --force origin
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: python -m pip install requests
+
+      - name: Append the push to the Notion note
+        env:
+          NOTION_TOKEN: ${ secrets.NOTION_TOKEN }
+          DEEPSEEK_KEY: ${ secrets.DEEPSEEK_KEY }
+          GITHUB_TOKEN: ${ github.token }
+          NOTION_PAGE_ID: "4160f327-9b7b-817b-99f8-cf33173af8f2"
+          # A branch name is not a release tag, so the script uses the newest
+          # vMAJOR.MINOR.PATCH tag in the clone. Dispatch stays dry.
+          CHANGELOG_DRY_RUN: ${ github.event_name != 'push' && 'true' || 'false' }
+          CHANGELOG_LIVE: "false"
+          CHANGELOG_SAMPLE: "false"
+        run: python .github/scripts/notion_changelog.py
