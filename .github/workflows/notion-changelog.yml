@@ -47,7 +47,7 @@ jobs:
         run: python -m pip install pytest requests
 
       - name: Test the changelog script
-        run: python -m pytest .github/scripts/test_notion_changelog.py -q --noconftest
+        run: python -m pytest tests/test_notion_changelog.py -q --noconftest
 
   changelog:
     needs: self-test

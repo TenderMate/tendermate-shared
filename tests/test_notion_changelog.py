@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import requests
 
-_SCRIPT = Path(__file__).resolve().parent / "notion_changelog.py"
+_SCRIPT = Path(__file__).resolve().parents[1] / ".github" / "scripts" / "notion_changelog.py"
 _spec = importlib.util.spec_from_file_location("notion_changelog", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 changelog = importlib.util.module_from_spec(_spec)
