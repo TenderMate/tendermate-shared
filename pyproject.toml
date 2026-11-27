@@ -11,6 +11,9 @@ dependencies = [
     "langchain-core>=0.3",
     "pydantic>=2",
     "opentelemetry-api>=1.45.2",
+    # tendermate_shared.auth: Keycloak service tokens (Client Credentials + JWKS verification).
+    "httpx>=0.28",
+    "pyjwt[crypto]>=2.15",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +50,7 @@ package-dir = { "tendermate_shared" = "src" }
 packages = [
     "tendermate_shared",
     "tendermate_shared.agents",
+    "tendermate_shared.auth",
     "tendermate_shared.observability",
     "tendermate_shared.grpc",
     "tendermate_shared.grpc.tendermate",
@@ -57,6 +61,7 @@ packages = [
 [tool.setuptools.package-data]
 tendermate_shared = ["proto/*.proto", "py.typed"]
 "tendermate_shared.agents" = ["py.typed"]
+"tendermate_shared.auth" = ["py.typed"]
 "tendermate_shared.observability" = ["py.typed"]
 
 [tool.ruff]
