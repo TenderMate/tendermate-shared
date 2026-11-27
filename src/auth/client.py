@@ -31,6 +31,10 @@ class ServiceTokenProvider:
     Keycloak returns no refresh token for Client Credentials, so a new token is requested when the
     cached one is within ``refresh_margin`` seconds of expiry (or half its lifetime, whichever is
     smaller). Concurrent callers share one request, its failure included.
+
+    ``scope``: the client scope(s) to request (space-separated). A client that calls several
+    services takes one provider per callee, each with the optional client scope that adds only
+    that callee's role (and so its audience): a callee cannot replay the token on another.
     """
 
     def __init__(
@@ -39,6 +43,7 @@ class ServiceTokenProvider:
         token_url: str,
         client_id: str,
         client_secret: str,
+        scope: str | None = None,
         timeout: float = 10.0,
         refresh_margin: float = 60.0,
         http: httpx.AsyncClient | None = None,
@@ -47,6 +52,7 @@ class ServiceTokenProvider:
         self._token_url = token_url
         self._client_id = client_id
         self._client_secret = client_secret
+        self._scope = scope
         self._refresh_margin = refresh_margin
         self._owns_http = http is None
         self._http = http or httpx.AsyncClient(timeout=timeout)
@@ -93,6 +99,8 @@ class ServiceTokenProvider:
             "client_id": self._client_id,
             "client_secret": self._client_secret,
         }
+        if self._scope:
+            form["scope"] = self._scope
         try:
             response = await self._http.post(self._token_url, data=form)
         except httpx.HTTPError as exc:
