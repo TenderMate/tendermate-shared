@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,6 +45,33 @@ def bearer_token(value: str | None) -> str | None:
     return token
 
 
+class _JWKClient(PyJWKClient):
+    """PyJWKClient whose forced refetch (a token with an unknown ``kid``) is attempted at most once
+    per ``cooldown`` seconds, FAILED attempts included.
+
+    PyJWT (>= 2.15) starts the cooldown on a successful fetch only: while Keycloak is unreachable,
+    every forged token with a random ``kid`` would wait the fetch timeout holding the client's lock
+    and queue the real checks behind it. Inside the cooldown the cached set is used, so an unknown
+    ``kid`` fails at once ("Unable to find a signing key") without a request.
+    """
+
+    def __init__(self, uri: str, *, cooldown: float, **kwargs: Any) -> None:
+        super().__init__(uri, cooldown_duration=cooldown, **kwargs)
+        self._cooldown = cooldown
+        self._last_refetch_attempt: float | None = None
+
+    def get_signing_keys(self, refresh: bool = False) -> list[jwt.PyJWK]:
+        # Called under the client's lock (get_signing_key), so no race on the timestamp.
+        if refresh:
+            now = time.monotonic()
+            last = self._last_refetch_attempt
+            if last is not None and now - last < self._cooldown:
+                refresh = False
+            else:
+                self._last_refetch_attempt = now
+        return super().get_signing_keys(refresh)
+
+
 class ServiceTokenVerifier:
     """Verifies a service token for THIS service (``client_id``, the token audience).
 
@@ -58,9 +86,14 @@ class ServiceTokenVerifier:
     def __init__(self, *, issuer: str, client_id: str, jwks_url: str | None = None) -> None:
         self._issuer = issuer.rstrip("/")
         self._client_id = client_id
-        # Caches the JWK set for an hour; an unknown kid (key rotation) forces a refetch.
-        self._jwks = PyJWKClient(
-            jwks_url or jwks_url_for(issuer), cache_keys=True, lifespan=3600, timeout=5
+        # Caches the JWK set for an hour; an unknown kid (key rotation) forces a refetch, at most
+        # once per 30 s (_JWKClient): forged tokens cannot make each request a call to Keycloak.
+        self._jwks = _JWKClient(
+            jwks_url or jwks_url_for(issuer),
+            cache_keys=True,
+            lifespan=3600,
+            timeout=5,
+            cooldown=30,
         )
 
     async def warm_up(self) -> None:

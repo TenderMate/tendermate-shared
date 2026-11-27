@@ -79,6 +79,22 @@ async def test_token_is_requested_once_and_cached() -> None:
     ]
 
 
+async def test_scope_is_requested_when_given() -> None:
+    # One provider per callee: the optional client scope that adds only that callee's role.
+    keycloak = _Keycloak()
+    provider = ServiceTokenProvider(
+        token_url=TOKEN_URL,
+        client_id="tendermate-backend",
+        client_secret=SECRET,
+        scope="tm-search",
+        http=httpx.AsyncClient(transport=httpx.MockTransport(keycloak.handle)),
+    )
+
+    await provider.token()
+
+    assert keycloak.forms[0]["scope"] == "tm-search"
+
+
 async def test_token_is_renewed_a_minute_before_expiry() -> None:
     keycloak, clock = _Keycloak(expires_in=300), _Clock()
     provider = _provider(keycloak.handle, clock)

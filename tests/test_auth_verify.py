@@ -228,3 +228,57 @@ def test_bearer_token(value: str | None, expected: str | None) -> None:
 
 def test_jwks_url_for_strips_trailing_slash() -> None:
     assert jwks_url_for(f"{ISSUER}/") == f"{ISSUER}/protocol/openid-connect/certs"
+
+
+class _CountingJwks:
+    """The patched JWKS endpoint, counting its calls; ``down`` = connection refused."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.down = False
+
+    def fetch(self) -> Any:
+        self.calls += 1
+        if self.down:
+            raise jwt.PyJWKClientConnectionError("Fail to fetch data from the url")
+        return JWKS
+
+
+@pytest.fixture
+def endpoint(monkeypatch: pytest.MonkeyPatch) -> _CountingJwks:
+    counting = _CountingJwks()
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: counting.fetch())
+    return counting
+
+
+async def test_forged_kids_refetch_the_jwks_once_per_cooldown(
+    verifier: ServiceTokenVerifier, endpoint: _CountingJwks
+) -> None:
+    await verifier.verify(make_token(), role="search")  # the first fetch
+    for _ in range(20):
+        with pytest.raises(InvalidServiceToken):
+            await verifier.verify(make_token(kid=str(uuid.uuid4())), role="search")
+
+    assert endpoint.calls == 2  # + one forced refetch, then the cooldown
+    assert (await verifier.verify(make_token(), role="search")).subject == SUB
+
+
+async def test_a_failed_refetch_starts_the_cooldown_too(
+    verifier: ServiceTokenVerifier, endpoint: _CountingJwks, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await verifier.verify(make_token(), role="search")
+    # Past PyJWT's own cooldown (it counts only successful fetches), then Keycloak goes down.
+    clock = time.monotonic() + 60
+    monkeypatch.setattr(verify_module.time, "monotonic", lambda: clock)
+    monkeypatch.setattr(jwt.jwks_client.time, "monotonic", lambda: clock)
+    endpoint.down = True
+
+    with pytest.raises(AuthServerUnavailable):
+        await verifier.verify(make_token(kid="forged-1"), role="search")
+    for _ in range(20):
+        with pytest.raises(InvalidServiceToken):  # no request: the cached set has no such kid
+            await verifier.verify(make_token(kid=str(uuid.uuid4())), role="search")
+
+    assert endpoint.calls == 2
+    # A cached key still verifies while Keycloak is down.
+    assert (await verifier.verify(make_token(), role="search")).subject == SUB
