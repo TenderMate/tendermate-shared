@@ -28,9 +28,6 @@ from opentelemetry import metrics, propagate, trace
 from opentelemetry.trace import Span, SpanKind, StatusCode
 from tendermate_shared.observability.metrics import SECONDS_BUCKETS
 
-# gRPC metadata key carrying the backend ↔ agent shared secret (agent: AGENT_GRPC_KEY,
-# backend: SEARCHING_AGENT_KEY).
-AUTH_METADATA_KEY = "x-internal-key"
 SEARCH_SERVICE = "tendermate.agent.v1.SearchService"
 
 _tracer = trace.get_tracer(__name__)

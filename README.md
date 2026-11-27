@@ -15,11 +15,26 @@ and `tendermate-import-agent` as a git dependency pinned to a release tag.
   - `telemetry`: the tm-obs half of each service's `init_telemetry` (OTLP export of metrics and
     logs, process runtime metrics, event-loop lag, Pyroscope profiles, the Phoenix span filter);
   - `rpc`: OpenTelemetry for the grpclib `SearchService`, client (backend) and server (agent)
-    halves, plus the `x-internal-key` metadata name.
+    halves.
 
   `metrics` and `rpc` need only `opentelemetry-api` (a core dependency, a no-op without an
   SDK). `telemetry` and Sentry capture need the `observability` extra: services depend on
   `tendermate-shared[observability]`.
+- `tendermate_shared.auth`: service-to-service auth with Keycloak access tokens (OAuth2 Client
+  Credentials). Each service is a confidential client of the realm; what it may call is a client
+  role of the callee.
+  - caller: `ServiceTokenProvider` (this service's token, cached until a minute before expiry;
+    concurrent callers share one request), `ClientCredentialsAuth` (`httpx.Auth`: Bearer header,
+    a 401 renews the token and resends once), `GRPC_AUTH_METADATA_KEY` (`authorization`, value
+    `Bearer <token>`) for grpclib;
+  - callee: `ServiceTokenVerifier.verify(token, role=…)` (RS256 by the realm JWKS, `iss`, `aud`
+    = own client id, `typ=Bearer`, the role in `resource_access[<own client id>]`) → the
+    `ServiceCaller` (`azp`, `sub`); `access_token_claims(token)` = the same checks without the
+    role, for a service that also takes users' tokens (the backend adds its `azp` check);
+    `bearer_token(header)`;
+  - errors: `TokenRequestFailed` (Keycloak refused the credentials), `AuthServerUnavailable`
+    (Keycloak down), `InvalidServiceToken` (→ 401), `MissingServiceRole` (→ 403), all
+    `ServiceAuthError`; metrics `service_auth.token{result}` and `service_auth.verify{result}`.
 
 ## Development
 
