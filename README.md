@@ -24,14 +24,17 @@ and `tendermate-import-agent` as a git dependency pinned to a release tag.
   Credentials). Each service is a confidential client of the realm; what it may call is a client
   role of the callee.
   - caller: `ServiceTokenProvider` (this service's token, cached until a minute before expiry;
-    concurrent callers share one request), `ClientCredentialsAuth` (`httpx.Auth`: Bearer header,
+    concurrent callers share one request; `scope=` requests an optional client scope: a caller
+    of several services takes one provider per callee, so each token carries only that callee's
+    audience and role), `ClientCredentialsAuth` (`httpx.Auth`: Bearer header,
     a 401 renews the token and resends once), `GRPC_AUTH_METADATA_KEY` (`authorization`, value
     `Bearer <token>`) for grpclib;
   - callee: `ServiceTokenVerifier.verify(token, role=…)` (RS256 by the realm JWKS, `iss`, `aud`
     = own client id, `typ=Bearer`, the role in `resource_access[<own client id>]`) → the
     `ServiceCaller` (`azp`, `sub`); `access_token_claims(token)` = the same checks without the
     role, for a service that also takes users' tokens (the backend adds its `azp` check);
-    `bearer_token(header)`;
+    `bearer_token(header)`; an unknown `kid` refetches the JWKS at most once per 30 s, failed
+    attempts included (forged tokens cannot turn every request into a call to Keycloak);
   - errors: `TokenRequestFailed` (Keycloak refused the credentials), `AuthServerUnavailable`
     (Keycloak down), `InvalidServiceToken` (→ 401), `MissingServiceRole` (→ 403), all
     `ServiceAuthError`; metrics `service_auth.token{result}` and `service_auth.verify{result}`.
